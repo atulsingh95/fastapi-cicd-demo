@@ -10,6 +10,10 @@ on:
       - main
 
 jobs:
+  # ==========================================
+  # JOB 1: TEST
+  # ==========================================
+
   test:
     runs-on: ubuntu-latest
 
@@ -31,6 +35,10 @@ jobs:
         run: |
           pytest
 
+  # ==========================================
+  # JOB 2: BUILD + PUSH DOCKER IMAGE
+  # ==========================================
+
   docker:
     needs: test
 
@@ -48,13 +56,70 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build Docker image
-        run: |
-          docker build \
-            -t ${{ secrets.DOCKER_USERNAME }}/fastapi-cicd-demo:latest \
-            .
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
 
-      - name: Push Docker image
-        run: |
-          docker push \
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/fastapi-cicd-demo:${{ github.sha }}
             ${{ secrets.DOCKER_USERNAME }}/fastapi-cicd-demo:latest
+
+  # ==========================================
+  # JOB 3: DEPLOY TO AWS EC2
+  # ==========================================
+
+  deploy:
+    needs: docker
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.EC2_HOST }}
+
+          username: ${{ secrets.EC2_USERNAME }}
+
+          key: ${{ secrets.EC2_SSH_KEY }}
+
+          script: |
+
+            echo "Starting deployment..."
+
+            echo "Pulling new Docker image..."
+
+            sudo docker pull ${{ secrets.DOCKER_USERNAME }}/fastapi-cicd-demo:${{ github.sha }}
+
+
+            echo "Stopping old container..."
+
+            sudo docker stop fastapi-demo || true
+
+
+            echo "Removing old container..."
+
+            sudo docker rm fastapi-demo || true
+
+
+            echo "Starting new container..."
+
+            sudo docker run -d \
+              --name fastapi-demo \
+              --restart unless-stopped \
+              -p 8000:8000 \
+              ${{ secrets.DOCKER_USERNAME }}/fastapi-cicd-demo:${{ github.sha }}
+
+
+            echo "Removing unused Docker images..."
+
+            sudo docker image prune -f
+
+
+            echo "Deployment completed!"
+
+            echo "Running containers:"
+
+            sudo docker ps
