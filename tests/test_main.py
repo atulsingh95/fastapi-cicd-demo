@@ -12,7 +12,7 @@ def test_hello_world():
 
     data = response.json()
 
-    assert data["message"] == "Hello World"
+    assert data["message"] == "Hello Atul"
     assert data["status"] == "success"
 
 
