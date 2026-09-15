@@ -6,7 +6,7 @@ app = FastAPI(title="FastAPI CI/CD Demo")
 @app.get("/")
 def hello_world():
     return {
-        "message": "Hello World",
+        "message": "Hello Atul",
         "status": "success"
     }
 
